@@ -1,5 +1,7 @@
 from aws_cdk import core
 from aws_cdk import aws_ec2 as ec2
+from awscdk_py.vars import var
+import requests
 
 class AwscdkPyStack(core.Stack):
 
@@ -8,53 +10,77 @@ class AwscdkPyStack(core.Stack):
 
         # The code that defines your stack goes here
 
-        # Subnet
-        subnetCfg = [
-            {
-                "name": "privateSubnet",
-                "subnetType": ec2.SubnetType.ISOLATED,
-                "cidrMask": 24,
-            },
-            {
-                "name": "publicSubnet",
-                "subnetType": ec2.SubnetType.PUBLIC,
-                "cidrMask": 24,
-            },
-        ]
+        # 変数
+        hensu = var()
 
-        # VPC_vars
-        vpcName = "testVpc"
-        vpcCidr = "192.168.0.0/20"
-        enableDnsSupport = True
-        maxAZs = 1
-        natGateways = 0
-        sgCidr = "192.168.0.0/24"
+        for subnetInfo in hensu.subnetInfoArray:
+            subnetCfg = ec2.SubnetConfiguration(
+                name = subnetInfo[0],
+                subnet_type = subnetInfo[1],
+                cidr_mask = subnetInfo[2]
+            )
+            hensu.subnetCfgArray.append(subnetCfg)
 
-        myVPC = self.createVpc(vpcCidr, vpcName, enableDnsSupport, maxAZs, natGateways, subnetCfg) 
+        myVPC = self.createVpc(
+            hensu.vpcCidr, 
+            hensu.vpcName, 
+            hensu.enableDnsSupport, 
+            hensu.maxAZs, 
+            hensu.natGateways, 
+            hensu.subnetCfgArray
+        ) 
 
         mySecurityGroup = self.createSg("mysg", myVPC)
-        mySecurityGroup.add_ingress_rule(
-            peer=ec2.Peer.ipv4(sgCidr), 
-            connection=ec2.Port(
-                protocol=ec2.Protocol.TCP, 
-                string_representation="vpc", 
-                from_port=22,
-                to_port=22
-            )
-        )
+        self.addSg(mySecurityGroup, hensu.sgCidr, "TCP", "vpc", 22, 22)
+        self.addSg(mySecurityGroup, self.getMyIp()+"/32", "UDP", "vpc2", 500, 500)
+        self.addSg(mySecurityGroup, self.getMyIp()+"/32", "UDP", "vpc3", 4500, 4500)
         
         # subnet を指定しないとデフォルトのサブネットにインスタンスを作成してしまうので指定の必要がある
-        for isolated_subnet in myVPC.isolated_subnets:
-            self.createInstance(
-                id="aaa", 
-                image_id="ami-089fea7afa1321a09", 
-                instance_type=ec2.InstanceType("t2.micro").to_string(),
-                security_group_ids=[mySecurityGroup.security_group_id], 
-                subnet_id=isolated_subnet.subnet_id
+        for public_subnet in myVPC.public_subnets:
+            myPublicInstance = self.createInstance(
+                id=hensu.PublicInstanceName, 
+                image_id=hensu.PublicInstanceAmiId, 
+                instance_type=ec2.InstanceType(hensu.PublicInstanceType).to_string(),
+                subnet_id=public_subnet.subnet_id,
+                security_group_ids=[mySecurityGroup.security_group_id],
             )
+        
+        # isolated には sg をかけないのでコメント扱い
+        for isolated_subnet in myVPC.isolated_subnets:
+            myIsolatedInstance = self.createInstance(
+                id=hensu.IsolatedInstanceName, 
+                image_id=hensu.IsolatedInstanceAmiId, 
+                instance_type=ec2.InstanceType(hensu.PublicInstanceType).to_string(),
+                subnet_id=isolated_subnet.subnet_id,
+                #security_group_ids=[mySecurityGroup.security_group_id]
+            )
+        
+        self.outputCfn("ip", myPublicInstance.attr_public_ip)
+    
+    def addSg(self, sg, cidr, proto, string_representation, from_port, to_port):
+        if (proto == "TCP"):
+            protocol = ec2.Protocol.TCP
+        elif (proto == "UDP"):
+            protocol = ec2.Protocol.UDP
+        sg.add_ingress_rule(
+            peer=ec2.Peer.ipv4(cidr),
+            connection=ec2.Port(
+                protocol=protocol,
+                string_representation=string_representation,
+                from_port=from_port,
+                to_port=to_port
+            ) 
+        )
 
     def createVpc(self, Cidr, Name, EDS, mAZs, natGWs, subnetCfg):
-        vpc = ec2.Vpc(self, Name, cidr=Cidr, enable_dns_support=EDS, max_azs=mAZs, nat_gateways=natGWs, subnet_configuration=subnetCfg)
+        vpc = ec2.Vpc(self, 
+            Name, 
+            cidr=Cidr, 
+            enable_dns_support=EDS, 
+            max_azs=mAZs, 
+            nat_gateways=natGWs, 
+            subnet_configuration=subnetCfg
+        )
         return vpc
 
     def createSg(self, Name, vpc):
@@ -65,20 +91,25 @@ class AwscdkPyStack(core.Stack):
         )
         return sg
 
-    def createInstance(self, id, image_id, instance_type, security_group_ids, subnet_id):
-        ec2.CfnInstance(
+    def createInstance(self, id, image_id, instance_type, subnet_id, security_group_ids=[]):
+        instance = ec2.CfnInstance(
                 scope=self,
                 id=id,
                 image_id=image_id,
                 instance_type=instance_type,
-                security_group_ids=security_group_ids,
-                subnet_id=subnet_id
+                subnet_id=subnet_id,
+                security_group_ids=security_group_ids
         )
+        return instance
 
-    def outputCfn(self, idd, variable):
+    def getMyIp(self):
+        res = requests.get("http://inet-ip.info/ip")
+        return res.text
+
+    def outputCfn(self, id, variable):
         core.CfnOutput(
                 scope=self,
-                id=idd,
+                id=id,
                 value=variable
         )
 
