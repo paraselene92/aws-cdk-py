@@ -32,6 +32,8 @@ class AwscdkPyStack(core.Stack):
 
         mySecurityGroup = self.createSg("mysg", myVPC)
         self.addSg(mySecurityGroup, hensu.sgCidr, "TCP", "vpc", 22, 22)
+        self.addSg(mySecurityGroup, hensu.sgCidr, "ICMP", "vpc", -1, -1)
+        self.addSg(mySecurityGroup, self.getMyIp()+"/32", "TCP", "vpc", 22, 22)
         self.addSg(mySecurityGroup, self.getMyIp()+"/32", "UDP", "vpc2", 500, 500)
         self.addSg(mySecurityGroup, self.getMyIp()+"/32", "UDP", "vpc3", 4500, 4500)
         
@@ -55,13 +57,18 @@ class AwscdkPyStack(core.Stack):
                 #security_group_ids=[mySecurityGroup.security_group_id]
             )
         
-        self.outputCfn("ip", myPublicInstance.attr_public_ip)
+        self.outputCfn("myPublicInstance_attr_public_ip", myPublicInstance.attr_public_ip)
+        self.outputCfn("myPublicInstance_attr_private_ip", myPublicInstance.attr_private_ip)
+        self.outputCfn("myIsolatedInstance_attr_private_ip", myIsolatedInstance.attr_private_ip)
+        
     
     def addSg(self, sg, cidr, proto, string_representation, from_port, to_port):
         if (proto == "TCP"):
             protocol = ec2.Protocol.TCP
         elif (proto == "UDP"):
             protocol = ec2.Protocol.UDP
+        elif (proto == "ICMP"):
+            protocol = ec2.Protocol.ICMP
         sg.add_ingress_rule(
             peer=ec2.Peer.ipv4(cidr),
             connection=ec2.Port(
