@@ -1,7 +1,6 @@
 from aws_cdk import core
 from aws_cdk import aws_ec2 as ec2
 from awscdk_py.vars import var
-import requests
 
 class AwscdkPyStack(core.Stack):
 
@@ -30,12 +29,9 @@ class AwscdkPyStack(core.Stack):
             hensu.subnetCfgArray
         ) 
 
-        mySecurityGroup = self.createSg("mysg", myVPC)
-        self.addSg(mySecurityGroup, hensu.sgCidr, "TCP", "vpc", 22, 22)
-        self.addSg(mySecurityGroup, hensu.sgCidr, "ICMP", "vpc", -1, -1)
-        self.addSg(mySecurityGroup, self.getMyIp()+"/32", "TCP", "vpc", 22, 22)
-        self.addSg(mySecurityGroup, self.getMyIp()+"/32", "UDP", "vpc2", 500, 500)
-        self.addSg(mySecurityGroup, self.getMyIp()+"/32", "UDP", "vpc3", 4500, 4500)
+        mySecurityGroup = self.createSg(hensu.sgName, myVPC)
+        for sgInfo in hensu.sgInfoArray:
+            self.addSg(mySecurityGroup, sgInfo[0], sgInfo[1], sgInfo[2], sgInfo[3], sgInfo[4])
         
         # subnet を指定しないとデフォルトのサブネットにインスタンスを作成してしまうので指定の必要がある
         for public_subnet in myVPC.public_subnets:
@@ -109,9 +105,9 @@ class AwscdkPyStack(core.Stack):
         )
         return instance
 
-    def getMyIp(self):
-        res = requests.get("http://inet-ip.info/ip")
-        return res.text
+    # def getMyIp(self):
+    #     res = requests.get("http://inet-ip.info/ip")
+    #     return res.text
 
     def outputCfn(self, id, variable):
         core.CfnOutput(

@@ -1,4 +1,3 @@
 .env/
 awscdk_py/__pycache__/**
-awscdk_py/vars.py
 cdk.out/
