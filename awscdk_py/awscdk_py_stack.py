@@ -7,9 +7,6 @@ class AwscdkPyStack(core.Stack):
     def __init__(self, scope: core.Construct, id: str, **kwargs) -> None:
         super().__init__(scope, id, **kwargs)
 
-        # The code that defines your stack goes here
-
-        # 変数
         hensu = var()
 
         for subnetInfo in hensu.subnetInfoArray:
@@ -48,7 +45,7 @@ class AwscdkPyStack(core.Stack):
             myIsolatedInstance = self.createInstance(
                 id=hensu.IsolatedInstanceName, 
                 image_id=hensu.IsolatedInstanceAmiId, 
-                instance_type=ec2.InstanceType(hensu.PublicInstanceType).to_string(),
+                instance_type=ec2.InstanceType(hensu.IsolatedInstanceType).to_string(),
                 subnet_id=isolated_subnet.subnet_id,
                 #security_group_ids=[mySecurityGroup.security_group_id]
             )
@@ -88,31 +85,27 @@ class AwscdkPyStack(core.Stack):
 
     def createSg(self, Name, vpc):
         sg = ec2.SecurityGroup(
-                scope=self,
-                id=Name,
-                vpc=vpc
+            scope=self,
+            id=Name,
+            vpc=vpc
         )
         return sg
 
     def createInstance(self, id, image_id, instance_type, subnet_id, security_group_ids=[]):
         instance = ec2.CfnInstance(
-                scope=self,
-                id=id,
-                image_id=image_id,
-                instance_type=instance_type,
-                subnet_id=subnet_id,
-                security_group_ids=security_group_ids
+            scope=self,
+            id=id,
+            image_id=image_id,
+            instance_type=instance_type,
+            subnet_id=subnet_id,
+            security_group_ids=security_group_ids
         )
         return instance
 
-    # def getMyIp(self):
-    #     res = requests.get("http://inet-ip.info/ip")
-    #     return res.text
-
     def outputCfn(self, id, variable):
         core.CfnOutput(
-                scope=self,
-                id=id,
-                value=variable
+            scope=self,
+            id=id,
+            value=variable
         )
 
